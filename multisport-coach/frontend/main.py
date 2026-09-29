@@ -108,8 +108,17 @@ _card: AgentCard | None = None
 async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     global _card
     if _card is None:
-        resp = await client.get(A2A_CARD_URL)
-        resp.raise_for_status()
+        try:
+            resp = await client.get(A2A_CARD_URL)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (400, 401):
+                # Force refresh token and retry card retrieval
+                client.headers.update(_auth_headers())
+                resp = await client.get(A2A_CARD_URL)
+                resp.raise_for_status()
+            else:
+                raise e
         card = AgentCard(**resp.json())
         # Agent Runtime does not serve a public card URL, so point the client at
         # the passthrough base for message sends.
@@ -153,7 +162,7 @@ async def chat(req: Request):
     user_id = body.get("user_id") or "web-user"
     parts: list[dict] = []
 
-    async with httpx.AsyncClient(headers=_auth_headers(), timeout=120) as client:
+    async with httpx.AsyncClient(headers=_auth_headers(), timeout=120, follow_redirects=True) as client:
         card = await _get_card(client)
         factory = ClientFactory(
             ClientConfig(
