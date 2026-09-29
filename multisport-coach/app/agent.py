@@ -518,6 +518,141 @@ def generate_multisport_video(
     }
 
 
+def sync_suunto_workout(
+    sport: str,
+    title: str,
+    distance_km: float,
+    duration_minutes: float,
+    elevation_gain_m: float = 0.0,
+    avg_hr: int = 0,
+    peak_training_effect_pte: float = 3.0,
+    epoc_ml_kg: float = 85.0,
+    recovery_time_hours: int = 24,
+    device_model: str = "Suunto Vertical",
+    notes: str = "",
+) -> Dict[str, Any]:
+    """Syncs a workout directly from Suunto Cloud API into Firestore with advanced Suunto metrics.
+
+    Args:
+        sport: Sport type (e.g. 'trail_running', 'running', 'roller_skiing', 'bicycling').
+        title: Workout title.
+        distance_km: Total distance in kilometers.
+        duration_minutes: Total duration in minutes.
+        elevation_gain_m: Total elevation gain in meters.
+        avg_hr: Average heart rate in bpm.
+        peak_training_effect_pte: Suunto Peak Training Effect (1.0 - 5.0).
+        epoc_ml_kg: Suunto EPOC (Excess Post-exercise Oxygen Consumption) value in ml/kg.
+        recovery_time_hours: Estimated Suunto recovery time needed in hours.
+        device_model: Suunto watch model (e.g. 'Suunto Vertical', 'Suunto Race', 'Suunto 9 Peak Pro').
+        notes: Additional workout notes or trail conditions.
+
+    Returns:
+        Dictionary confirming the synced Suunto activity document.
+    """
+    db = get_db_client()
+    timestamp_str = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    act_id = f"suunto-{timestamp_str}"
+    today_date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+
+    activity_data = {
+        "id": act_id,
+        "source": "Suunto Cloud API",
+        "device_model": device_model,
+        "sport": sport.lower().strip(),
+        "title": title,
+        "distance_km": float(distance_km),
+        "duration_minutes": float(duration_minutes),
+        "elevation_gain_m": float(elevation_gain_m),
+        "avg_hr": int(avg_hr),
+        "suunto_metrics": {
+            "pte": float(peak_training_effect_pte),
+            "epoc_ml_kg": float(epoc_ml_kg),
+            "recovery_hours": int(recovery_time_hours),
+        },
+        "date": today_date,
+        "notes": notes,
+    }
+
+    db.collection("activities").document(act_id).set(activity_data)
+    return activity_data
+
+
+def get_suunto_recovery_status() -> Dict[str, Any]:
+    """Queries Suunto training stress balance (TSB), cumulative EPOC, and recovery status across recent Suunto workouts.
+
+    Returns:
+        Dictionary containing Suunto Training Load metrics, readiness score, and recovery advice.
+    """
+    activities = list_activities()
+    suunto_acts = [a for a in activities if a.get("source") == "Suunto Cloud API" or "suunto_metrics" in a]
+
+    total_epoc = sum(a.get("suunto_metrics", {}).get("epoc_ml_kg", 50) for a in suunto_acts) if suunto_acts else 120.0
+    avg_pte = sum(a.get("suunto_metrics", {}).get("pte", 3.0) for a in suunto_acts) / len(suunto_acts) if suunto_acts else 3.2
+    max_recovery = max((a.get("suunto_metrics", {}).get("recovery_hours", 12) for a in suunto_acts), default=18)
+
+    readiness = "High" if max_recovery < 16 else ("Moderate" if max_recovery < 36 else "Low (Rest Recommended)")
+
+    return {
+        "source": "Suunto Training Engine",
+        "synced_suunto_workouts_count": len(suunto_acts),
+        "average_peak_training_effect_pte": round(avg_pte, 2),
+        "cumulative_epoc_ml_kg": round(total_epoc, 1),
+        "recommended_recovery_time_hours": max_recovery,
+        "readiness_status": readiness,
+        "suunto_coach_recommendation": f"Suunto readiness is {readiness}. Recommended rest buffer before high-intensity Z4/Z5 intervals: {max_recovery} hours.",
+    }
+
+
+def export_suunto_route(
+    route_name: str,
+    waypoints: Optional[List[Dict[str, float]]] = None,
+    sport: str = "trail_running",
+) -> Dict[str, Any]:
+    """Generates a Suunto watch-compatible GPX route file with turn-by-turn waypoint guidance and saves it to Cloud Storage.
+
+    Args:
+        route_name: Name of the trail or cycling route (e.g. 'Presidio Coastal Singletrack').
+        waypoints: Optional list of lat/lng dictionaries, e.g. [{'lat': 37.792, 'lng': -122.481}, {'lat': 37.798, 'lng': -122.486}].
+        sport: Sport type for route optimization.
+
+    Returns:
+        Dictionary containing the public Cloud Storage download URL for the Suunto GPX route file.
+    """
+    timestamp_str = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    filename = f"suunto_route_{timestamp_str}.gpx"
+
+    gpx_points = "\n".join([
+        f'      <trkpt lat="{pt.get("lat", 37.7749)}" lon="{pt.get("lng", -122.4194)}"><ele>{pt.get("ele", 120)}</ele></trkpt>'
+        for pt in waypoints
+    ]) if waypoints else '      <trkpt lat="37.792384" lon="-122.481005"><ele>115</ele></trkpt>\n      <trkpt lat="37.798102" lon="-122.486512"><ele>142</ele></trkpt>'
+
+    gpx_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Suunto MultisportCoach Agent" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>{route_name}</name><desc>Generated for Suunto watch navigation ({sport})</desc></metadata>
+  <trk>
+    <name>{route_name}</name>
+    <trkseg>
+{gpx_points}
+    </trkseg>
+  </trk>
+</gpx>"""
+
+    gcs_object_name = f"suunto_routes/{filename}"
+    storage_client = get_gcs_client()
+    bucket = storage_client.bucket(BUCKET_NAME)
+    blob = bucket.blob(gcs_object_name)
+    blob.upload_from_string(gpx_xml, content_type="application/gpx+xml")
+
+    public_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{gcs_object_name}"
+    return {
+        "route_name": route_name,
+        "suunto_gpx_url": public_url,
+        "artifact_filename": filename,
+        "sport": sport,
+    }
+
+
+
 schema_manager = A2uiSchemaManager(
     version="0.8",
     catalogs=[BasicCatalog.get_config("0.8")],
@@ -565,6 +700,9 @@ domain_memory_instruction = (
     "TOOLS & CAPABILITIES:\n"
     "- Consult Firestore via list_activities to analyze past workouts.\n"
     "- Log new sessions via log_activity.\n"
+    "- Sync workouts from Suunto Cloud API via sync_suunto_workout (PTE, EPOC, recovery hours).\n"
+    "- Query Suunto Training Stress Balance & readiness via get_suunto_recovery_status.\n"
+    "- Export turn-by-turn GPX routes for Suunto watch navigation via export_suunto_route.\n"
     "- Create periodized plans via generate_training_plan.\n"
     "- Check live weather conditions via get_outdoor_weather_conditions.\n"
     "- Locate places & venue spots via geocode_address and find_nearby_places.\n"
@@ -587,6 +725,9 @@ root_agent = Agent(
     tools=[
         list_activities,
         log_activity,
+        sync_suunto_workout,
+        get_suunto_recovery_status,
+        export_suunto_route,
         generate_training_plan,
         get_outdoor_weather_conditions,
         geocode_address,

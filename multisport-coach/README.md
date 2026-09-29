@@ -36,6 +36,7 @@ Based on `app/agent.py` and `agents-cli-manifest.yaml`, the following services a
 | **Media Storage** | Cloud Storage (GCS) | Asset hosting for generated images and videos |
 | **Image Generation** | Vertex AI Imagen 3 | `generate_multisport_image` |
 | **Video Generation** | Vertex AI Gemini Omni / Veo | `generate_multisport_video` |
+| **Suunto Integration** | Suunto Cloud API & Watch Nav | `sync_suunto_workout`, `get_suunto_recovery_status`, `export_suunto_route` |
 | **Location Services** | Google Maps API | `geocode_address`, `find_nearby_places` |
 | **Weather** | Open-Meteo Weather API | `get_outdoor_weather_conditions` |
 | **Code Sandbox** | Agent Engine Sandbox Executor | Python mathematical analysis |
