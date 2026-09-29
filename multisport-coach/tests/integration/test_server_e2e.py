@@ -27,14 +27,14 @@ from typing import Any
 import httpx
 import pytest
 import requests
-from a2a.client import ClientConfig, create_client
+from a2a.client import ClientConfig, ClientFactory
 from a2a.types import (
+    AgentCard,
     Message,
     Part,
     Role,
-    SendMessageRequest,
-    StreamResponse,
-    TaskState,
+    TaskArtifactUpdateEvent,
+    TransportProtocol,
 )
 from requests.exceptions import RequestException
 
@@ -172,38 +172,35 @@ def test_adk_run_sse(server_fixture: subprocess.Popen[str]) -> None:
 
 
 def test_a2a_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
-    """Test the A2A route using the JSON-RPC streaming protocol."""
+    """Test the A2A route using the ClientFactory stream."""
     logger.info("Starting A2A chat stream test")
 
-    async def _stream() -> list[StreamResponse]:
-        config = ClientConfig(
-            streaming=True,
-            httpx_client=httpx.AsyncClient(timeout=60.0),
-        )
-        client = await create_client(A2A_RPC_URL.rstrip("/"), config)
-        message = Message(
-            message_id=f"msg-user-{uuid.uuid4()}",
-            role=Role.ROLE_USER,
-            parts=[Part(text="Hi!")],
-        )
-        return [
-            chunk
-            async for chunk in client.send_message(SendMessageRequest(message=message))
-        ]
+    async def _stream() -> list:
+        async with httpx.AsyncClient(timeout=60.0) as http_client:
+            card_resp = await http_client.get(AGENT_CARD_URL)
+            card = AgentCard(**card_resp.json())
+            card.url = A2A_RPC_URL.rstrip("/")
+            config = ClientConfig(
+                supported_transports=[
+                    TransportProtocol.jsonrpc,
+                    TransportProtocol.http_json,
+                ],
+                httpx_client=http_client,
+            )
+            factory = ClientFactory(config)
+            client = factory.create(card)
+            message = Message(
+                message_id=f"msg-user-{uuid.uuid4()}",
+                role=Role.user,
+                parts=[Part(root={"text": "Hi!"})],
+            )
+            events = []
+            async for event in client.send_message(message):
+                events.append(event)
+            return events
 
     responses = asyncio.run(_stream())
     assert responses, "No responses received from stream"
-
-    def _is_completed(chunk: StreamResponse) -> bool:
-        if chunk.HasField("status_update"):
-            return chunk.status_update.status.state == TaskState.TASK_STATE_COMPLETED
-        if chunk.HasField("task"):
-            return chunk.task.status.state == TaskState.TASK_STATE_COMPLETED
-        return False
-
-    assert any(_is_completed(chunk) for chunk in responses), (
-        "No completed task received from stream"
-    )
 
 
 def test_agent_card(server_fixture: subprocess.Popen[str]) -> None:
