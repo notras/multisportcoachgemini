@@ -1,0 +1,362 @@
+{
+  "eval_cases": [
+    {
+      "prompt": {
+        "parts": [
+          {
+            "text": "Hello, what can you help me with?"
+          }
+        ],
+        "role": "user"
+      },
+      "responses": [
+        {
+          "response": {
+            "parts": [
+              {
+                "text": "Hello! I can help you with a wide variety of tasks, including:\n\n* **Information & Learning:** Answering questions, explaining complex topics, summarizing articles, and helping with research.\n* **Writing & Editing:** Drafting emails, essays, stories, reports, or proofreading and polishing your writing.\n* **Productivity & Brainstorming:** Planning schedules, generating ideas, creating outlines, and organizing projects.\n* **Coding & Tech:** Writing, debugging, and explaining code across many programming languages.\n* **Real-time info:** Checking the current time and weather for locations around the world.\n\nHow can I assist you today?"
+              }
+            ],
+            "role": "model"
+          }
+        }
+      ],
+      "eval_case_id": "greeting",
+      "agent_data": {
+        "agents": {
+          "simple_agent": {
+            "agent_id": "simple_agent",
+            "agent_type": "LlmAgent",
+            "description": "",
+            "instruction": "You are a helpful AI assistant designed to provide accurate and useful information.",
+            "tools": [
+              {
+                "function_declarations": [
+                  {
+                    "description": "Simulates a web search. Use it get information on weather.\n\nArgs:\n    query: A string containing the location to get weather information for.\n\nReturns:\n    A string with the simulated weather information for the queried location.",
+                    "name": "get_weather",
+                    "parameters_json_schema": {
+                      "properties": {
+                        "query": {
+                          "title": "Query",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "query"
+                      ],
+                      "title": "get_weatherParams",
+                      "type": "object"
+                    },
+                    "response_json_schema": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              {
+                "function_declarations": [
+                  {
+                    "description": "Simulates getting the current time for a city.\n\nArgs:\n    city: The name of the city to get the current time for.\n\nReturns:\n    A string with the current time information.",
+                    "name": "get_current_time",
+                    "parameters_json_schema": {
+                      "properties": {
+                        "query": {
+                          "title": "Query",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "query"
+                      ],
+                      "title": "get_current_timeParams",
+                      "type": "object"
+                    },
+                    "response_json_schema": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            ],
+            "sub_agents": []
+          }
+        },
+        "turns": [
+          {
+            "turn_index": 0,
+            "turn_id": "turn_0",
+            "events": [
+              {
+                "author": "simple_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "Hello! I can help you with a wide variety of tasks, including:\n\n* **Information & Learning:** Answering questions, explaining complex topics, summarizing articles, and helping with research.\n* **Writing & Editing:** Drafting emails, essays, stories, reports, or proofreading and polishing your writing.\n* **Productivity & Brainstorming:** Planning schedules, generating ideas, creating outlines, and organizing projects.\n* **Coding & Tech:** Writing, debugging, and explaining code across many programming languages.\n* **Real-time info:** Checking the current time and weather for locations around the world.\n\nHow can I assist you today?"
+                    }
+                  ],
+                  "role": "model"
+                },
+                "event_time": "2026-09-29T08:22:20.480952Z"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "prompt": {
+        "parts": [
+          {
+            "text": "What's the weather like in San Francisco?"
+          }
+        ],
+        "role": "user"
+      },
+      "responses": [
+        {
+          "response": {
+            "parts": [
+              {
+                "text": "The weather in San Francisco is currently 60°F and foggy."
+              }
+            ],
+            "role": "model"
+          }
+        }
+      ],
+      "eval_case_id": "weather_query",
+      "agent_data": {
+        "agents": {
+          "simple_agent": {
+            "agent_id": "simple_agent",
+            "agent_type": "LlmAgent",
+            "description": "",
+            "instruction": "You are a helpful AI assistant designed to provide accurate and useful information.",
+            "tools": [
+              {
+                "function_declarations": [
+                  {
+                    "description": "Simulates a web search. Use it get information on weather.\n\nArgs:\n    query: A string containing the location to get weather information for.\n\nReturns:\n    A string with the simulated weather information for the queried location.",
+                    "name": "get_weather",
+                    "parameters_json_schema": {
+                      "properties": {
+                        "query": {
+                          "title": "Query",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "query"
+                      ],
+                      "title": "get_weatherParams",
+                      "type": "object"
+                    },
+                    "response_json_schema": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              {
+                "function_declarations": [
+                  {
+                    "description": "Simulates getting the current time for a city.\n\nArgs:\n    city: The name of the city to get the current time for.\n\nReturns:\n    A string with the current time information.",
+                    "name": "get_current_time",
+                    "parameters_json_schema": {
+                      "properties": {
+                        "query": {
+                          "title": "Query",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "query"
+                      ],
+                      "title": "get_current_timeParams",
+                      "type": "object"
+                    },
+                    "response_json_schema": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            ],
+            "sub_agents": []
+          }
+        },
+        "turns": [
+          {
+            "turn_index": 0,
+            "turn_id": "turn_0",
+            "events": [
+              {
+                "author": "simple_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_call": {
+                        "id": "call_127394",
+                        "args": {
+                          "query": "San Francisco"
+                        },
+                        "name": "get_weather"
+                      }
+                    }
+                  ],
+                  "role": "model"
+                },
+                "event_time": "2026-09-29T08:22:20.526800Z"
+              },
+              {
+                "author": "simple_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "function_response": {
+                        "id": "call_127394",
+                        "name": "get_weather",
+                        "response": {
+                          "result": "It's 60 degrees and foggy."
+                        }
+                      }
+                    }
+                  ],
+                  "role": "user"
+                },
+                "event_time": "2026-09-29T08:22:22.249785Z"
+              },
+              {
+                "author": "simple_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "The weather in San Francisco is currently 60°F and foggy."
+                    }
+                  ],
+                  "role": "model"
+                },
+                "event_time": "2026-09-29T08:22:22.252452Z"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "prompt": {
+        "parts": [
+          {
+            "text": "What is the capital of France?"
+          }
+        ],
+        "role": "user"
+      },
+      "responses": [
+        {
+          "response": {
+            "parts": [
+              {
+                "text": "The capital of France is Paris."
+              }
+            ],
+            "role": "model"
+          }
+        }
+      ],
+      "reference": {
+        "response": {
+          "parts": [
+            {
+              "text": "The capital of France is Paris."
+            }
+          ],
+          "role": "model"
+        }
+      },
+      "eval_case_id": "capital_lookup",
+      "agent_data": {
+        "agents": {
+          "simple_agent": {
+            "agent_id": "simple_agent",
+            "agent_type": "LlmAgent",
+            "description": "",
+            "instruction": "You are a helpful AI assistant designed to provide accurate and useful information.",
+            "tools": [
+              {
+                "function_declarations": [
+                  {
+                    "description": "Simulates a web search. Use it get information on weather.\n\nArgs:\n    query: A string containing the location to get weather information for.\n\nReturns:\n    A string with the simulated weather information for the queried location.",
+                    "name": "get_weather",
+                    "parameters_json_schema": {
+                      "properties": {
+                        "query": {
+                          "title": "Query",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "query"
+                      ],
+                      "title": "get_weatherParams",
+                      "type": "object"
+                    },
+                    "response_json_schema": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              {
+                "function_declarations": [
+                  {
+                    "description": "Simulates getting the current time for a city.\n\nArgs:\n    city: The name of the city to get the current time for.\n\nReturns:\n    A string with the current time information.",
+                    "name": "get_current_time",
+                    "parameters_json_schema": {
+                      "properties": {
+                        "query": {
+                          "title": "Query",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "query"
+                      ],
+                      "title": "get_current_timeParams",
+                      "type": "object"
+                    },
+                    "response_json_schema": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            ],
+            "sub_agents": []
+          }
+        },
+        "turns": [
+          {
+            "turn_index": 0,
+            "turn_id": "turn_0",
+            "events": [
+              {
+                "author": "simple_agent",
+                "content": {
+                  "parts": [
+                    {
+                      "text": "The capital of France is Paris."
+                    }
+                  ],
+                  "role": "model"
+                },
+                "event_time": "2026-09-29T08:22:20.523437Z"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
