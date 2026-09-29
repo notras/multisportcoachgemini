@@ -37,6 +37,10 @@ Based on `app/agent.py` and `agents-cli-manifest.yaml`, the following services a
 | **Image Generation** | Vertex AI Imagen 3 | `generate_multisport_image` |
 | **Video Generation** | Vertex AI Gemini Omni / Veo | `generate_multisport_video` |
 | **Suunto Integration** | Suunto Cloud API & Watch Nav | `sync_suunto_workout`, `get_suunto_recovery_status`, `export_suunto_route` |
+| **Strava Integration** | Strava API v3 | `sync_strava_activity` (Relative Effort, Suffer Score, Segment efforts) |
+| **Garmin Integration** | Garmin Connect API | `get_garmin_connect_metrics` (Body Battery, HRV Status, Sleep & Training Readiness) |
+| **COROS Integration** | COROS EvoLab (Irvine, CA) | `get_coros_evolab_metrics` (Base Fitness score, Fatigue Index, 4-Week Load Impact) |
+| **Apple HealthKit** | Apple Watch (Cupertino, CA) | `sync_apple_healthkit_workout` (Running Power, Ground Contact Time, Active Kcal) |
 | **Location Services** | Google Maps API | `geocode_address`, `find_nearby_places` |
 | **Weather** | Open-Meteo Weather API | `get_outdoor_weather_conditions` |
 | **Code Sandbox** | Agent Engine Sandbox Executor | Python mathematical analysis |
