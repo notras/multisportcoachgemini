@@ -164,7 +164,7 @@ async def attach_a2a_routes(
         add_a2a_routes_to_fastapi(
             app,
             agent_card_routes=create_agent_card_routes(
-                agent_card,
+                lambda: agent_card,
                 card_modifier=_add_v0_3_compat_interface,
                 card_url=f"{rpc_path}{AGENT_CARD_WELL_KNOWN_PATH}",
             ),

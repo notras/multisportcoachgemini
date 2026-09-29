@@ -41,6 +41,10 @@ Based on `app/agent.py` and `agents-cli-manifest.yaml`, the following services a
 | **Garmin Integration** | Garmin Connect API | `get_garmin_connect_metrics` (Body Battery, HRV Status, Sleep & Training Readiness) |
 | **COROS Integration** | COROS EvoLab (Irvine, CA) | `get_coros_evolab_metrics` (Base Fitness score, Fatigue Index, 4-Week Load Impact) |
 | **Apple HealthKit** | Apple Watch (Cupertino, CA) | `sync_apple_healthkit_workout` (Running Power, Ground Contact Time, Active Kcal) |
+| **Race Pacing Strategy** | AI Endurance Pacing Engine | `calculate_race_pacing_strategy` (Split pace targets, grade & altitude penalties) |
+| **Recovery & HRV Matrix** | Banister ACWR & HRV Z-Score | `get_recovery_hrv_matrix` (Acute-to-chronic workload ratio, overtraining risk) |
+| **Fueling & Hydration** | Sweat & Carbohydrate Engine | `generate_fueling_hydration_plan` (Hourly Carbs g/hr, Fluid ml/hr, Sodium mg/hr) |
+| **Audio Workout Cues** | Audio Narration Generator | `generate_audio_workout_cues` (Timestamped verbal coaching prompts) |
 | **Location Services** | Google Maps API | `geocode_address`, `find_nearby_places` |
 | **Weather** | Open-Meteo Weather API | `get_outdoor_weather_conditions` |
 | **Code Sandbox** | Agent Engine Sandbox Executor | Python mathematical analysis |

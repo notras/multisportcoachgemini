@@ -19,13 +19,17 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from app.agent import (
+    calculate_race_pacing_strategy,
     export_suunto_route,
     find_nearby_places,
+    generate_audio_workout_cues,
+    generate_fueling_hydration_plan,
     generate_training_plan,
     geocode_address,
     get_coros_evolab_metrics,
     get_garmin_connect_metrics,
     get_outdoor_weather_conditions,
+    get_recovery_hrv_matrix,
     get_suunto_recovery_status,
     list_activities,
     log_activity,
@@ -159,6 +163,28 @@ class TestAgentToolsUnit(unittest.TestCase):
         self.assertIn("Apple", apple_res["source"])
         self.assertEqual(apple_res["apple_metrics"]["running_power_watts"], 255.0)
 
+    def test_advanced_endurance_tools(self):
+        """Test 4 new high-demand coaching tools: Race Pacing, HRV Matrix, Fueling Plan, and Audio Cues."""
+        # 1. Race Pacing Strategy
+        pace_res = calculate_race_pacing_strategy(distance_km=50.0, target_time_hours=5.0, elevation_gain_m=1200.0)
+        self.assertEqual(pace_res["distance_km"], 50.0)
+        self.assertEqual(len(pace_res["quarter_splits"]), 4)
+
+        # 2. HRV Overtraining Matrix
+        hrv_res = get_recovery_hrv_matrix(acute_7day_load=700.0, chronic_28day_load=2100.0)
+        self.assertIn("acwr_score", hrv_res)
+        self.assertIn("overtraining_risk", hrv_res)
+
+        # 3. Fueling & Hydration Plan
+        fuel_res = generate_fueling_hydration_plan(sport="trail_running", duration_hours=4.0, body_weight_kg=70.0)
+        self.assertIn("hourly_targets", fuel_res)
+        self.assertGreater(fuel_res["hourly_targets"]["carbohydrates_g_per_hour"], 0)
+
+        # 4. Audio Workout Cues
+        audio_res = generate_audio_workout_cues(title="Threshold Ladder", sport="running", duration_minutes=45.0)
+        self.assertEqual(audio_res["title"], "Threshold Ladder")
+        self.assertIsInstance(audio_res["audio_cues_script"], list)
+
     def test_weather_and_maps_tools(self):
         """Test Weather and Google Maps helper functions."""
         # Weather tool
@@ -197,6 +223,10 @@ class TestAgentToolsUnit(unittest.TestCase):
             "get_garmin_connect_metrics",
             "get_coros_evolab_metrics",
             "sync_apple_healthkit_workout",
+            "calculate_race_pacing_strategy",
+            "get_recovery_hrv_matrix",
+            "generate_fueling_hydration_plan",
+            "generate_audio_workout_cues",
             "generate_training_plan",
             "get_outdoor_weather_conditions",
             "geocode_address",

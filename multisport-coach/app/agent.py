@@ -799,6 +799,227 @@ def sync_apple_healthkit_workout(
 
 
 
+def calculate_race_pacing_strategy(
+    distance_km: float,
+    target_time_hours: float,
+    elevation_gain_m: float = 0.0,
+    elevation_loss_m: float = 0.0,
+    temperature_c: float = 20.0,
+    altitude_m: float = 0.0,
+    sport: str = "trail_running",
+) -> Dict[str, Any]:
+    """Calculates target split pacing, elevation grade penalties, and HR zone targets for race day.
+
+    Args:
+        distance_km: Total race distance in kilometers.
+        target_time_hours: Goal finish time in decimal hours (e.g., 4.5 for 4h30m).
+        elevation_gain_m: Total elevation gain in meters.
+        elevation_loss_m: Total elevation loss in meters.
+        temperature_c: Anticipated ambient temperature in Celsius.
+        altitude_m: Average course altitude in meters above sea level.
+        sport: Race discipline ('running', 'trail_running', 'bicycling').
+
+    Returns:
+        Dictionary containing overall average target pace, elevation-adjusted pace, segment splits, and race advice.
+    """
+    total_minutes = target_time_hours * 60.0
+    base_pace_min_km = total_minutes / max(distance_km, 0.1)
+
+    climb_penalty_factor = 1.0 + (elevation_gain_m / (distance_km * 1000.0 if distance_km > 0 else 1.0)) * 0.1
+    heat_factor = 1.0 + max(0.0, temperature_c - 18.0) * 0.01
+    alt_factor = 1.0 + max(0.0, altitude_m - 1000.0) / 300.0 * 0.01
+
+    effective_pace = base_pace_min_km * climb_penalty_factor * heat_factor * alt_factor
+    
+    split_distance = distance_km / 4.0
+    splits = []
+    pacing_strategy = [0.98, 1.00, 1.02, 0.99]
+    
+    for i, factor in enumerate(pacing_strategy, 1):
+        seg_pace = effective_pace * factor
+        seg_time = seg_pace * split_distance
+        splits.append({
+            "segment": f"Q{i} (0 - {round(split_distance * i, 1)} km)",
+            "target_pace_min_km": f"{int(seg_pace)}:{int((seg_pace % 1) * 60):02d}",
+            "segment_duration_minutes": round(seg_time, 1),
+            "target_hr_zone": "Zone 2 (Aerobic)" if i <= 2 else "Zone 3 (Tempo)",
+        })
+
+    return {
+        "sport": sport.lower().strip(),
+        "distance_km": distance_km,
+        "target_time_hours": target_time_hours,
+        "base_pace_min_km": f"{int(base_pace_min_km)}:{int((base_pace_min_km % 1) * 60):02d}",
+        "adjusted_average_pace": f"{int(effective_pace)}:{int((effective_pace % 1) * 60):02d}",
+        "elevation_gain_m": elevation_gain_m,
+        "environmental_factors": {
+            "temperature_c": temperature_c,
+            "altitude_m": altitude_m,
+            "heat_penalty_percent": round((heat_factor - 1.0) * 100, 1),
+            "altitude_penalty_percent": round((alt_factor - 1.0) * 100, 1),
+        },
+        "quarter_splits": splits,
+        "pacing_advice": "Start Q1 2% under target pace to preserve glycogen. Focus on active hydration and electrolytes on uphill segments.",
+    }
+
+
+def get_recovery_hrv_matrix(
+    acute_7day_load: float = 650.0,
+    chronic_28day_load: float = 2100.0,
+    recent_hrv_rmssd_ms: float = 54.0,
+    baseline_hrv_rmssd_ms: float = 62.0,
+    sleep_quality_score: int = 82,
+) -> Dict[str, Any]:
+    """Computes Acute-to-Chronic Workload Ratio (ACWR), HRV deviation, and overtraining risk index.
+
+    Args:
+        acute_7day_load: Acute workload sum over last 7 days (AU).
+        chronic_28day_load: Chronic workload sum over last 28 days (AU).
+        recent_hrv_rmssd_ms: Recent 3-day average HRV rMSSD in milliseconds.
+        baseline_hrv_rmssd_ms: Athlete baseline 30-day average HRV rMSSD in milliseconds.
+        sleep_quality_score: Sleep quality rating (0 - 100).
+
+    Returns:
+        Dictionary containing ACWR score, HRV z-score, overtraining risk category, and readiness advice.
+    """
+    chronic_weekly_avg = chronic_28day_load / 4.0 if chronic_28day_load > 0 else 1.0
+    acwr = acute_7day_load / chronic_weekly_avg
+
+    hrv_diff_percent = ((recent_hrv_rmssd_ms - baseline_hrv_rmssd_ms) / baseline_hrv_rmssd_ms) * 100.0
+
+    if 0.8 <= acwr <= 1.3 and hrv_diff_percent >= -10.0 and sleep_quality_score >= 75:
+        risk = "Optimal (Low Overtraining Risk)"
+        recommendation = "Green light for planned high-intensity threshold or VO2 Max interval sessions."
+    elif acwr > 1.5 or hrv_diff_percent < -20.0 or sleep_quality_score < 60:
+        risk = "High Risk (Overtraining Warning)"
+        recommendation = "Red light! High injury/overtraining risk. Substitute hard session with Z1 active recovery or complete rest."
+    else:
+        risk = "Moderate Risk (Functional Overreaching)"
+        recommendation = "Yellow light. Keep workouts strictly in Z2 aerobic zone and prioritize 8+ hours of sleep."
+
+    return {
+        "acwr_score": round(acwr, 2),
+        "acwr_category": "Sweet Spot (0.8-1.3)" if 0.8 <= acwr <= 1.3 else ("Danger Zone (>1.5)" if acwr > 1.5 else "Low Load (<0.8)"),
+        "hrv_rmssd_ms": recent_hrv_rmssd_ms,
+        "hrv_baseline_ms": baseline_hrv_rmssd_ms,
+        "hrv_deviation_percent": round(hrv_diff_percent, 1),
+        "sleep_quality_score": sleep_quality_score,
+        "overtraining_risk": risk,
+        "coach_readiness_advice": recommendation,
+    }
+
+
+def generate_fueling_hydration_plan(
+    sport: str,
+    duration_hours: float,
+    body_weight_kg: float = 70.0,
+    intensity_level: str = "moderate",
+    temperature_c: float = 24.0,
+    humidity_percent: int = 60,
+) -> Dict[str, Any]:
+    """Calculates hourly carbohydrate, fluid, and electrolyte requirements for long endurance workouts and races.
+
+    Args:
+        sport: Sport type ('running', 'trail_running', 'roller_skiing', 'bicycling').
+        duration_hours: Planned workout/race duration in hours.
+        body_weight_kg: Athlete body mass in kilograms.
+        intensity_level: Exertion level ('easy', 'moderate', 'high', 'race').
+        temperature_c: Ambient temperature in Celsius.
+        humidity_percent: Relative humidity percentage.
+
+    Returns:
+        Dictionary containing hourly carbohydrate ($g/hr$), fluid ($ml/hr$), sodium ($mg/hr$), and solid/gel fueling recommendations.
+    """
+    if duration_hours < 1.25:
+        carbs_g_hr = 0.0
+    elif duration_hours <= 2.5:
+        carbs_g_hr = 45.0 if intensity_level in ("moderate", "easy") else 60.0
+    else:
+        carbs_g_hr = 60.0 if intensity_level in ("moderate", "easy") else 80.0
+
+    sweat_base = body_weight_kg * 8.0
+    heat_mod = max(0.0, temperature_c - 18.0) * 20.0
+    humidity_mod = max(0.0, humidity_percent - 50) * 3.0
+    fluid_ml_hr = round(sweat_base + heat_mod + humidity_mod, -1)
+
+    sodium_mg_hr = round((fluid_ml_hr / 1000.0) * 700.0, -1)
+
+    return {
+        "sport": sport.lower().strip(),
+        "duration_hours": duration_hours,
+        "intensity_level": intensity_level,
+        "environmental_conditions": {
+            "temperature_c": temperature_c,
+            "humidity_percent": humidity_percent,
+        },
+        "hourly_targets": {
+            "carbohydrates_g_per_hour": carbs_g_hr,
+            "fluid_ml_per_hour": fluid_ml_hr,
+            "sodium_mg_per_hour": sodium_mg_hr,
+        },
+        "total_event_requirements": {
+            "total_carbohydrates_g": round(carbs_g_hr * duration_hours, 1),
+            "total_fluid_liters": round((fluid_ml_hr * duration_hours) / 1000.0, 2),
+            "total_sodium_mg": round(sodium_mg_hr * duration_hours, 0),
+        },
+        "fueling_strategy_notes": f"Take 1 gel (25g carbs) every 20-25 minutes with {round(fluid_ml_hr / 3.0)} ml water. Sip electrolyte drink continuously.",
+    }
+
+
+def generate_audio_workout_cues(
+    title: str,
+    sport: str = "running",
+    duration_minutes: float = 45.0,
+    interval_structure: str = "4x4min Z4 threshold intervals with 2min Z1 recovery",
+) -> Dict[str, Any]:
+    """Generates timestamped audio cue scripts and motivational coaching narration for headphones/smartwatch audio prompts.
+
+    Args:
+        title: Session name (e.g., 'VO2 Max Ladder').
+        sport: Sport type.
+        duration_minutes: Workout duration in minutes.
+        interval_structure: Description of intervals/phases.
+
+    Returns:
+        Dictionary containing structured timestamped audio cues and verbal coaching prompts.
+    """
+    cues = [
+        {
+            "timestamp": "00:00",
+            "phase": "Warm-up Start",
+            "audio_prompt": f"Welcome athlete! Starting {title} ({sport}). Begin 10-minute progressive Z1-Z2 warm-up. Focus on smooth breathing.",
+        },
+        {
+            "timestamp": "10:00",
+            "phase": "Interval Block 1",
+            "audio_prompt": f"Warm-up complete! Get ready for {interval_structure}. First hard effort starts in 3... 2... 1... Push into Zone 4!",
+        },
+        {
+            "timestamp": f"{int(duration_minutes * 0.5):02d}:00",
+            "phase": "Mid-point Check",
+            "audio_prompt": "Halfway through the session! Relax your shoulders, check your cadence (175 bpm), and stay tall.",
+        },
+        {
+            "timestamp": f"{int(duration_minutes - 5.0):02d}:00",
+            "phase": "Cool-down Start",
+            "audio_prompt": "Hard work is done! Great effort! Transition to 5-minute easy Z1 flush out spin/jog.",
+        },
+        {
+            "timestamp": f"{int(duration_minutes):02d}:00",
+            "phase": "Workout Complete",
+            "audio_prompt": f"Workout complete! Excellent session. Remember to log your fueling and hydrate now.",
+        },
+    ]
+
+    return {
+        "title": title,
+        "sport": sport.lower().strip(),
+        "duration_minutes": duration_minutes,
+        "interval_structure": interval_structure,
+        "audio_cues_script": cues,
+    }
+
+
 schema_manager = A2uiSchemaManager(
     version="0.8",
     catalogs=[BasicCatalog.get_config("0.8")],
@@ -853,6 +1074,10 @@ domain_memory_instruction = (
     "- Query Garmin Connect Body Battery, HRV Status, & VO2 Max via get_garmin_connect_metrics.\n"
     "- Query COROS EvoLab (Irvine, CA) Base Fitness & Fatigue Index via get_coros_evolab_metrics.\n"
     "- Sync Apple Watch / HealthKit (Cupertino, CA) Running Power & Dynamics via sync_apple_healthkit_workout.\n"
+    "- Calculate race pacing & grade adjustments via calculate_race_pacing_strategy.\n"
+    "- Compute Acute-to-Chronic Workload Ratio & HRV overtraining matrix via get_recovery_hrv_matrix.\n"
+    "- Generate hourly carbohydrate, fluid, & sodium fueling plans via generate_fueling_hydration_plan.\n"
+    "- Generate timestamped audio workout cues & verbal coaching via generate_audio_workout_cues.\n"
     "- Create periodized plans via generate_training_plan.\n"
     "- Check live weather conditions via get_outdoor_weather_conditions.\n"
     "- Locate places & venue spots via geocode_address and find_nearby_places.\n"
@@ -882,6 +1107,10 @@ root_agent = Agent(
         get_garmin_connect_metrics,
         get_coros_evolab_metrics,
         sync_apple_healthkit_workout,
+        calculate_race_pacing_strategy,
+        get_recovery_hrv_matrix,
+        generate_fueling_hydration_plan,
+        generate_audio_workout_cues,
         generate_training_plan,
         get_outdoor_weather_conditions,
         geocode_address,
