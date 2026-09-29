@@ -127,31 +127,55 @@ async def _get_card(client: httpx.AsyncClient) -> AgentCard:
     return _card
 
 
-def _extract_parts(parts: list) -> list[dict]:
-    """Turn A2A response parts into structured parts for the chat UI.
+def _extract_parts(obj: Any) -> list[dict]:
+    """Turn A2A response parts or event objects into structured parts for the chat UI.
 
     Text parts pass through as {"kind": "text"}. A2UI data parts (tagged
     application/json+a2ui) become {"kind": "a2ui", "data": <message>} so the UI
-    renders the card; each data part is one A2UI message (beginRendering or
-    surfaceUpdate).
+    renders the card.
     """
     out: list[dict] = []
-    for p in parts:
-        root = getattr(p, "root", p)
-        if isinstance(root, TextPart) and getattr(root, "text", None):
-            txt = root.text.strip()
-            if "Cannot add session to memory" in txt:
-                continue
+    if obj is None:
+        return out
+
+    if isinstance(obj, (list, tuple)):
+        for item in obj:
+            out.extend(_extract_parts(item))
+        return out
+
+    if isinstance(obj, TaskArtifactUpdateEvent) and hasattr(obj, "artifact"):
+        return _extract_parts(getattr(obj.artifact, "parts", []))
+
+    # Check for direct parts list attribute
+    parts_attr = getattr(obj, "parts", None)
+    if parts_attr:
+        res = _extract_parts(parts_attr)
+        if res:
+            return res
+
+    # Check for nested message or status
+    msg_attr = getattr(obj, "message", None) or getattr(obj, "status", None)
+    if msg_attr and msg_attr != obj:
+        res = _extract_parts(msg_attr)
+        if res:
+            return res
+
+    root = getattr(obj, "root", obj)
+
+    if hasattr(root, "text") and getattr(root, "text", None):
+        txt = str(root.text).strip()
+        if txt and "Cannot add session to memory" not in txt:
             out.append({"kind": "text", "text": txt})
-        elif getattr(root, "data", None) is not None:
-            meta = getattr(root, "metadata", None) or {}
-            mime = meta.get("mimeType") if isinstance(meta, dict) else None
-            if mime == _A2UI_MIME:
-                out.append({"kind": "a2ui", "data": root.data})
-        elif isinstance(root, FilePart):
-            uri = getattr(getattr(root, "file", None), "uri", None)
-            if uri:
-                out.append({"kind": "text", "text": uri})
+    elif getattr(root, "data", None) is not None:
+        meta = getattr(root, "metadata", None) or {}
+        mime = meta.get("mimeType") if isinstance(meta, dict) else None
+        if mime == _A2UI_MIME or isinstance(root.data, dict):
+            out.append({"kind": "a2ui", "data": root.data})
+    elif hasattr(root, "file"):
+        uri = getattr(getattr(root, "file", None), "uri", None)
+        if uri:
+            out.append({"kind": "text", "text": uri})
+
     return out
 
 
@@ -184,26 +208,31 @@ async def chat(req: Request):
 
         last_task = None
         async for event in a2a_client.send_message(msg):
-            if not isinstance(event, tuple):
-                continue
-            task, update = event
-            if task is not None:
-                last_task = task
-                if getattr(task, "context_id", None):
-                    _contexts[user_id] = task.context_id
-            if isinstance(update, TaskArtifactUpdateEvent):
-                extracted = _extract_parts(update.artifact.parts)
+            if isinstance(event, tuple):
+                task, update = event
+                if task is not None:
+                    last_task = task
+                    if getattr(task, "context_id", None):
+                        _contexts[user_id] = task.context_id
+                if update is not None:
+                    extracted = _extract_parts(update)
+                    if extracted:
+                        parts.extend(extracted)
+            else:
+                extracted = _extract_parts(event)
                 if extracted:
                     parts.extend(extracted)
 
-        # Non-streaming fallback: pull parts from the final task's artifacts or history.
+        # Fallback: pull parts from final task's artifacts, history, or status
         if not parts and last_task is not None:
             for artifact in getattr(last_task, "artifacts", None) or []:
-                parts.extend(_extract_parts(artifact.parts))
+                parts.extend(_extract_parts(artifact))
             if not parts and getattr(last_task, "history", None):
                 for hist_msg in getattr(last_task, "history", []):
                     if getattr(hist_msg, "role", None) in (Role.agent, "agent"):
-                        parts.extend(_extract_parts(getattr(hist_msg, "parts", [])))
+                        parts.extend(_extract_parts(hist_msg))
+            if not parts and getattr(last_task, "status", None):
+                parts.extend(_extract_parts(getattr(last_task, "status", None)))
 
     if not parts:
         # The turn produced no text or UI (e.g. the agent only ran tools, or a
